@@ -21,10 +21,8 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Setup Project Structure and Kotlin
+      - name: Setup Project Structure and App
         run: |
-          mkdir -p lib
-          if [ -f "main.dart" ]; then mv main.dart lib/; fi
           mkdir -p temp_launcher
           cd temp_launcher
           flutter create --project-name tiba2_launcher .
@@ -33,6 +31,105 @@ jobs:
           rm -rf temp_launcher
           find android -type f \( -name "build.gradle" -o -name "settings.gradle" \) -exec sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.22'/g" {} +
           find android -type f \( -name "build.gradle" -o -name "settings.gradle" \) -exec sed -i "s/org.jetbrains.kotlin:kotlin-gradle-plugin:.*/org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22'/g" {} +
+          mkdir -p lib
+          cat << 'EOF' > lib/main.dart
+          import 'package:flutter/material.dart';
+
+          void main() {
+            runApp(const TibaLauncherApp());
+          }
+
+          class TibaLauncherApp extends StatelessWidget {
+            const TibaLauncherApp({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return MaterialApp(
+                title: 'Tiba 2 Launcher',
+                debugShowCheckedModeBanner: false,
+                theme: ThemeData.dark().copyWith(
+                  scaffoldBackgroundColor: const Color(0xFF0F172A),
+                ),
+                home: const LauncherHomePage(),
+              );
+            }
+          }
+
+          class LauncherHomePage extends StatelessWidget {
+            const LauncherHomePage({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+                body: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'TIBA 2',
+                              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.cyanAccent),
+                            ),
+                            StreamBuilder(
+                              stream: Stream.periodic(const Duration(seconds: 1)),
+                              builder: (context, snapshot) {
+                                final now = DateTime.now();
+                                final timeStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+                                return Text(
+                                  timeStr,
+                                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 30),
+                        Expanded(
+                          child: GridView.count(
+                            crossAxisCount: 4,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            children: [
+                              _buildButton(Icons.navigation, 'مسیریاب', Colors.blue),
+                              _buildButton(Icons.music_note, 'موسیقی', Colors.purple),
+                              _buildButton(Icons.radio, 'رادیو', Colors.amber),
+                              _buildButton(Icons.phone, 'تماس', Colors.green),
+                              _buildButton(Icons.settings, 'تنظیمات', Colors.grey),
+                              _buildButton(Icons.apps, 'برنامه‌ها', Colors.teal),
+                              _buildButton(Icons.bluetooth, 'بلوتوث', Colors.indigo),
+                              _buildButton(Icons.videocam, 'دوربین', Colors.red),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            Widget _buildButton(IconData icon, String label, Color color) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 42, color: color),
+                    const SizedBox(height: 10),
+                    Text(label, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                  ],
+                ),
+              );
+            }
+          }
+          EOF
 
       - name: Build APK
         run: flutter build apk --release
