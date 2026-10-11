@@ -1,8 +1,8 @@
-name: Build Tiba Launcher APK
+name: Build APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -18,19 +18,19 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
           channel: 'stable'
+          cache: true
 
-      - name: Create Android Wrapper
+      - name: Create Base Project and Update Kotlin
         run: |
-          flutter create --project-name tiba2_launcher --platforms=android .
-
-      - name: Upgrade Kotlin Version
-        run: |
-          sed -i "s/ext.kotlin_version = '.*'/ext.kotlin_version = '1.9.0'/" android/build.gradle || true
-
-      - name: Install Dependencies
-        run: flutter pub get
+          mkdir -p temp_launcher
+          cd temp_launcher
+          flutter create --project-name tiba2_launcher .
+          cp -r android ../
+          cd ..
+          rm -rf temp_launcher
+          find android -type f \( -name "build.gradle" -o -name "settings.gradle" \) -exec sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.22'/g" {} +
+          find android -type f \( -name "build.gradle" -o -name "settings.gradle" \) -exec sed -i "s/org.jetbrains.kotlin:kotlin-gradle-plugin:.*/org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22'/g" {} +
 
       - name: Build APK
         run: flutter build apk --release
@@ -38,5 +38,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tiba2-Launcher-APK
+          name: Tiba2_Launcher_App
           path: build/app/outputs/flutter-apk/app-release.apk
