@@ -18,7 +18,7 @@ jobs:
 
       - name: Create Android Project Wrapper
         run: |
-          flutter create --platforms=android .
+          flutter create --project-name tiba2_launcher --platforms=android .
 
       - name: Install Dependencies
         run: flutter pub get
