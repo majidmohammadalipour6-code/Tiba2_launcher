@@ -21,8 +21,10 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create Base Project and Update Kotlin
+      - name: Setup Project Structure and Kotlin
         run: |
+          mkdir -p lib
+          if [ -f "main.dart" ]; then mv main.dart lib/; fi
           mkdir -p temp_launcher
           cd temp_launcher
           flutter create --project-name tiba2_launcher .
