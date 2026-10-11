@@ -1,10 +1,5 @@
 name: Build APK
-
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
-
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,22 +12,17 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true
-
-      - name: Setup Project
+      
+      - name: Create and Build Project
         run: |
-          mkdir -p temp_app
-          cd temp_app
-          flutter create --project-name tiba2_launcher .
-          flutter pub add geolocator permission_handler android_intent_plus
-          cp -r android ../
-          cp pubspec.yaml ../
-          cd ..
-          rm -rf temp_app
-          find android -type f \( -name "build.gradle" -o -name "settings.gradle" \) -exec sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.22'/g" {} +
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
+          # ایجاد پروژه تمیز (برای ساخت ساختار اندروید)
+          flutter create . --project-name tiba2_launcher
           
-          mkdir -p lib
+          # اضافه کردن کتابخانه‌ها
+          flutter pub add geolocator permission_handler android_intent_plus
+          
+          # جایگزینی فایل اصلی ما با فایل ایجاد شده
+          # توجه: این کد فایل main.dart ما را جایگزین فایل پیش‌فرض می‌کند
           cat << 'EOF' > lib/main.dart
           import 'dart:async';
           import 'dart:math';
@@ -65,7 +55,7 @@ jobs:
 
             void _startGps() async {
               if (await Permission.location.request().isGranted) {
-                Geolocator.getPositionStream().listen((pos) {
+                Geolocator.getPositionStream(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)).listen((pos) {
                   setState(() { _speed = pos.speed * 3.6; });
                 });
               }
@@ -111,12 +101,14 @@ jobs:
             @override bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
           }
           EOF
+          
+          # اضافه کردن مجوز GPS به فایل اندروید
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
+          
+          # بیلد نهایی
+          flutter build apk --release
 
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Upload
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: Tiba2_Pro_Launcher
+          name: Tiba2_Launcher_Final
           path: build/app/outputs/flutter-apk/app-release.apk
