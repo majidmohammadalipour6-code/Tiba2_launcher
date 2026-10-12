@@ -15,25 +15,35 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
       - name: Setup and Build
         run: |
-          # پاکسازی فایل‌های قدیمی
+          # پاکسازی محیط برای شروع تازه
           find . -maxdepth 1 -not -name '.github' -not -name '.' -exec rm -rf {} +
 
-          # ساخت پروژه پایه فلاتر
+          # ساخت پروژه تمیز
           flutter create . --project-name tiba2_launcher --platforms=android
 
-          # افزودن پکیج‌های لازم
-          flutter pub add geolocator permission_handler android_intent_plus
+          # افزودن پکیج‌ها با نسخه‌های تست‌شده و پایدار
+          flutter pub add geolocator:^10.1.0 permission_handler:^11.3.0 android_intent_plus:^4.0.3
 
-          # اصلاح نسخه‌های کاتلین و گریدل برای جلوگیری از ارور assembleRelease
+          # تنظیم دقیق نسخه‌های اندروید و کاتلین
+          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 34/g' android/app/build.gradle || true
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle || true
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/g' android/app/build.gradle || true
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle || true
+          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 34/g' android/app/build.gradle || true
+          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle || true
+
+          # هماهنگ‌سازی نسخه کاتلین
           find android -type f -name "build.gradle" -exec sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.22'/g" {} +
+          find android -type f -name "settings.gradle" -exec sed -i "s/id \"org.jetbrains.kotlin.android\" version .*/id \"org.jetbrains.kotlin.android\" version \"1.9.22\" apply false/g" {} +
 
-          # افزودن مجوزهای مکان‌یابی برای اندروید ۱۰ و ۱۱
+          # مجوزهای GPS
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
 
-          # ایجاد کد اصلی برنامه (سرعت‌سنج عقربه‌ای + دیجیتال + حالت شب + صدا)
+          # ایجاد کد اصلی لانچر
           cat << 'EOF' > lib/main.dart
           import 'dart:async';
           import 'dart:math';
@@ -101,16 +111,15 @@ jobs:
 
             @override
             Widget build(BuildContext context) {
-              Color bgColor = _nightMode ? const Color(0xFF0A0E17) : const Color(0xFF1E2638);
-              Color accentColor = _nightMode ? Colors.cyanAccent : Colors.amberAccent;
+              Color bgColor = _nightMode ? const Color(0xFF080C14) : const Color(0xFF1B2232);
+              Color accentColor = _nightMode ? Colors.cyanAccent : Colors.orangeAccent;
 
               return Scaffold(
                 backgroundColor: bgColor,
                 body: SafeArea(
                   child: Column(
                     children: [
-                      const SizedBox(height: 15),
-                      // سرعت‌سنج ترکیبی (عقربه‌ای و دیجیتال)
+                      const SizedBox(height: 10),
                       Expanded(
                         child: Center(
                           child: Stack(
@@ -126,17 +135,17 @@ jobs:
                                   Text(
                                     "${_speed.toInt()}",
                                     style: TextStyle(
-                                      fontSize: 60,
+                                      fontSize: 64,
                                       fontWeight: FontWeight.w900,
                                       color: accentColor,
                                       shadows: [
-                                        Shadow(color: accentColor.withOpacity(0.5), blurRadius: 15),
+                                        Shadow(color: accentColor.withOpacity(0.4), blurRadius: 18),
                                       ],
                                     ),
                                   ),
                                   const Text(
                                     "KM/H",
-                                    style: TextStyle(fontSize: 14, color: Colors.white54, letterSpacing: 3),
+                                    style: TextStyle(fontSize: 13, color: Colors.white54, letterSpacing: 4),
                                   ),
                                 ],
                               ),
@@ -144,7 +153,6 @@ jobs:
                           ),
                         ),
                       ),
-                      // دکمه‌های کنترلی اصلی مانیتور
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                         child: Row(
@@ -164,7 +172,7 @@ jobs:
                               child: _btnCard(
                                 icon: _nightMode ? Icons.nightlight_round : Icons.wb_sunny_rounded,
                                 title: _nightMode ? "حالت شب (تیره)" : "حالت روز (روشن)",
-                                subtitle: "کنترل نور چشم",
+                                subtitle: "کنترل نور مانیتور",
                                 onTap: () {
                                   setState(() {
                                     _nightMode = !_nightMode;
@@ -221,15 +229,13 @@ jobs:
               final center = Offset(size.width / 2, size.height / 2);
               final radius = size.width / 2;
 
-              // قوس پس‌زمینه
               final bgPaint = Paint()
-                ..color = Colors.white10
+                ..color = Colors.white12
                 ..style = PaintingStyle.stroke
                 ..strokeCap = StrokeCap.round
                 ..strokeWidth = 12;
               canvas.drawArc(Rect.fromCircle(center: center, radius: radius), pi * 0.75, pi * 1.5, false, bgPaint);
 
-              // قوس پر شده بر اساس سرعت
               final activePaint = Paint()
                 ..color = accentColor
                 ..style = PaintingStyle.stroke
@@ -238,7 +244,6 @@ jobs:
               double sweep = (speed / 200.0) * (pi * 1.5);
               canvas.drawArc(Rect.fromCircle(center: center, radius: radius), pi * 0.75, sweep.clamp(0.0, pi * 1.5), false, activePaint);
 
-              // عقربه سوزنی
               double needleAngle = (pi * 0.75) + sweep;
               final needlePaint = Paint()
                 ..color = Colors.white
@@ -253,7 +258,7 @@ jobs:
           }
           EOF
 
-          # بیلد فایل نصبی
+          # ساخت APK نهایی
           flutter build apk --release
 
       - name: Upload Artifact
