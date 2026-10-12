@@ -6,30 +6,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
-
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-
-      - name: Build in Clean Environment
+      
+      - name: Hard Reset and Build
         run: |
-          # 1. ساخت یک پوشه موقت برای بیلد (تا با فایل‌های گیت‌هاب تداخل نکند)
-          mkdir build_env
-          cd build_env
+          # حذف تمام فایل‌های پروژه قبلی به جز پوشه .github
+          find . -maxdepth 1 -not -name '.github' -not -name '.' -exec rm -rf {} +
           
-          # 2. ایجاد پروژه در پوشه تمیز
+          # ساخت پروژه پایه فلاتر
           flutter create . --project-name tiba2_launcher
           
-          # 3. جایگزینی pubspec با پکیج‌های درست
+          # جایگزینی مستقیم pubspec
           cat << 'EOF' > pubspec.yaml
           name: tiba2_launcher
-          description: Tiba 2 Car Launcher
-          publish_to: 'none'
+          description: A new Flutter project.
           version: 1.0.0+1
           environment:
             sdk: '>=3.0.0 <4.0.0'
@@ -43,56 +39,22 @@ jobs:
             uses-material-design: true
           EOF
           
-          # 4. دریافت پکیج‌ها
+          # نصب پکیج‌ها
           flutter pub get
           
-          # 5. تنظیمات گریدل و کاتلین
-          echo "android { compileSdkVersion 34; defaultConfig { minSdkVersion 21; targetSdkVersion 34; } }" >> android/app/build.gradle
+          # اصلاحات کاتلین
           find android -type f -name "build.gradle" -exec sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.22'/g" {} +
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
           
-          # 6. کپی کد اصلی (main.dart)
+          # کد برنامه (main.dart)
           cat << 'EOF' > lib/main.dart
-          import 'dart:async'; import 'dart:math'; import 'package:flutter/material.dart'; import 'package:geolocator/geolocator.dart'; import 'package:permission_handler/permission_handler.dart'; import 'package:android_intent_plus/android_intent.dart';
-          void main() => runApp(const MaterialApp(debugShowCheckedModeBanner: false, theme: ThemeData.dark(), home: Dashboard()));
-          class Dashboard extends StatefulWidget { const Dashboard({super.key}); @override State<Dashboard> createState() => _DashboardState(); }
-          class _DashboardState extends State<Dashboard> {
-            double _speed = 0.0; bool _nightMode = true;
-            @override void initState() { super.initState(); _init(); }
-            void _init() async { if (await Permission.location.request().isGranted) { Geolocator.getPositionStream().listen((p) => setState(() => _speed = (p.speed * 3.6).clamp(0, 240))); } }
-            @override Widget build(BuildContext context) {
-              return Scaffold(backgroundColor: _nightMode ? Colors.black : const Color(0xFF1E2638),
-                body: SafeArea(child: Column(children: [
-                  Expanded(child: Center(child: Stack(alignment: Alignment.center, children: [
-                    CustomPaint(size: const Size(200, 200), painter: SpeedPainter(_speed)),
-                    Text("${_speed.toInt()}", style: const TextStyle(fontSize: 50, fontWeight: FontWeight.bold, color: Colors.cyan)),
-                  ]))),
-                  Row(children: [
-                    Expanded(child: InkWell(onTap: () => const AndroidIntent(action: 'android.settings.SOUND_SETTINGS').launch(), child: const Card(child: Padding(padding: EdgeInsets.all(20), child: Text("صدا", textAlign: TextAlign.center))))),
-                    Expanded(child: InkWell(onTap: () => setState(() => _nightMode = !_nightMode), child: const Card(child: Padding(padding: EdgeInsets.all(20), child: Text("حالت شب", textAlign: TextAlign.center))))),
-                  ])
-                ])));
-            }
-          }
-          class SpeedPainter extends CustomPainter {
-            final double s; SpeedPainter(this.s);
-            @override void paint(Canvas c, Size size) {
-              c.drawArc(Rect.fromLTWH(0,0,size.width,size.height), pi*0.75, pi*1.5, false, Paint()..color=Colors.white24..strokeWidth=10..style=PaintingStyle.stroke);
-              c.drawArc(Rect.fromLTWH(0,0,size.width,size.height), pi*0.75, (s/200)*pi*1.5, false, Paint()..color=Colors.cyan..strokeWidth=10..style=PaintingStyle.stroke);
-            }
-            @override bool shouldRepaint(covariant CustomPainter old) => true;
-          }
+          import 'package:flutter/material.dart';
+          void main() => runApp(const MaterialApp(home: Scaffold(body: Center(child: Text("Launcher Ready")))));
           EOF
           
-          # 7. بیلد نهایی
+          # بیلد آزمایشی (فقط برای تست پایداری گریدل)
           flutter build apk --release
           
-          # 8. خروجی به پوشه اصلی
-          mkdir -p ../build_output
-          cp build/app/outputs/flutter-apk/app-release.apk ../build_output/
-          
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: Tiba2_Launcher_APK
-          path: build_output/app-release.apk
+          name: Tiba2_Test_APK
+          path: build/app/outputs/flutter-apk/app-release.apk
