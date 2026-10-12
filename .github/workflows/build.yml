@@ -1,28 +1,39 @@
 name: Build APK
 on: [push, workflow_dispatch]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - uses: actions/setup-java@v3
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-      
-      - name: Create and Build Project
+
+      - name: Setup and Build
         run: |
-          # ایجاد پروژه تمیز (برای ساخت ساختار اندروید)
-          flutter create . --project-name tiba2_launcher
-          
-          # اضافه کردن کتابخانه‌ها
+          # پاکسازی فایل‌های قدیمی
+          find . -maxdepth 1 -not -name '.github' -not -name '.' -exec rm -rf {} +
+
+          # ساخت پروژه پایه فلاتر
+          flutter create . --project-name tiba2_launcher --platforms=android
+
+          # افزودن پکیج‌های لازم
           flutter pub add geolocator permission_handler android_intent_plus
-          
-          # جایگزینی فایل اصلی ما با فایل ایجاد شده
-          # توجه: این کد فایل main.dart ما را جایگزین فایل پیش‌فرض می‌کند
+
+          # اصلاح نسخه‌های کاتلین و گریدل برای جلوگیری از ارور assembleRelease
+          find android -type f -name "build.gradle" -exec sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.22'/g" {} +
+
+          # افزودن مجوزهای مکان‌یابی برای اندروید ۱۰ و ۱۱
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
+
+          # ایجاد کد اصلی برنامه (سرعت‌سنج عقربه‌ای + دیجیتال + حالت شب + صدا)
           cat << 'EOF' > lib/main.dart
           import 'dart:async';
           import 'dart:math';
@@ -31,84 +42,222 @@ jobs:
           import 'package:permission_handler/permission_handler.dart';
           import 'package:android_intent_plus/android_intent.dart';
 
-          void main() => runApp(const TibaLauncher());
+          void main() {
+            runApp(const TibaLauncher());
+          }
 
           class TibaLauncher extends StatelessWidget {
             const TibaLauncher({super.key});
+
             @override
             Widget build(BuildContext context) {
-              return MaterialApp(debugShowCheckedModeBanner: false, theme: ThemeData.dark(), home: const Dashboard());
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: ThemeData.dark(),
+                home: const Dashboard(),
+              );
             }
           }
 
-          class Dashboard extends StatefulWidget { const Dashboard({super.key}); @override State<Dashboard> createState() => _DashboardState(); }
+          class Dashboard extends StatefulWidget {
+            const Dashboard({super.key});
+
+            @override
+            State<Dashboard> createState() => _DashboardState();
+          }
 
           class _DashboardState extends State<Dashboard> {
             double _speed = 0.0;
             bool _nightMode = true;
+            StreamSubscription<Position>? _positionStream;
 
             @override
             void initState() {
               super.initState();
-              _startGps();
+              _initGps();
             }
 
-            void _startGps() async {
-              if (await Permission.location.request().isGranted) {
-                Geolocator.getPositionStream(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)).listen((pos) {
-                  setState(() { _speed = pos.speed * 3.6; });
+            void _initGps() async {
+              var status = await Permission.location.request();
+              if (status.isGranted) {
+                _positionStream = Geolocator.getPositionStream(
+                  locationSettings: const LocationSettings(
+                    accuracy: LocationAccuracy.high,
+                    distanceFilter: 1,
+                  ),
+                ).listen((Position position) {
+                  setState(() {
+                    _speed = (position.speed * 3.6).clamp(0.0, 240.0);
+                  });
                 });
               }
             }
 
             @override
+            void dispose() {
+              _positionStream?.cancel();
+              super.dispose();
+            }
+
+            @override
             Widget build(BuildContext context) {
+              Color bgColor = _nightMode ? const Color(0xFF0A0E17) : const Color(0xFF1E2638);
+              Color accentColor = _nightMode ? Colors.cyanAccent : Colors.amberAccent;
+
               return Scaffold(
-                backgroundColor: _nightMode ? Colors.black : const Color(0xFF1E1E1E),
-                body: Column(
-                  children: [
-                    Expanded(child: Center(
-                      child: Stack(alignment: Alignment.center, children: [
-                        CustomPaint(size: const Size(200, 200), painter: SpeedometerPainter(_speed)),
-                        Text("${_speed.toInt()}", style: const TextStyle(fontSize: 50, fontWeight: FontWeight.bold, color: Colors.cyan)),
-                      ]),
-                    )),
-                    GridView.count(
-                      shrinkWrap: true, crossAxisCount: 2, padding: const EdgeInsets.all(20),
-                      children: [
-                        _card(Icons.music_note, "تنظیمات صدا", () => const AndroidIntent(action: 'android.settings.SOUND_SETTINGS').launch()),
-                        _card(_nightMode ? Icons.wb_sunny : Icons.nights_stay, "حالت شب", () => setState(() => _nightMode = !_nightMode)),
-                      ],
-                    )
-                  ],
+                backgroundColor: bgColor,
+                body: SafeArea(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 15),
+                      // سرعت‌سنج ترکیبی (عقربه‌ای و دیجیتال)
+                      Expanded(
+                        child: Center(
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              CustomPaint(
+                                size: const Size(220, 220),
+                                painter: ModernSpeedometerPainter(_speed, accentColor),
+                              ),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    "${_speed.toInt()}",
+                                    style: TextStyle(
+                                      fontSize: 60,
+                                      fontWeight: FontWeight.w900,
+                                      color: accentColor,
+                                      shadows: [
+                                        Shadow(color: accentColor.withOpacity(0.5), blurRadius: 15),
+                                      ],
+                                    ),
+                                  ),
+                                  const Text(
+                                    "KM/H",
+                                    style: TextStyle(fontSize: 14, color: Colors.white54, letterSpacing: 3),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // دکمه‌های کنترلی اصلی مانیتور
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _btnCard(
+                                icon: Icons.equalizer_rounded,
+                                title: "تنظیمات باند و صدا",
+                                subtitle: "فیدر، بالانس و ساب",
+                                onTap: () {
+                                  const AndroidIntent(action: 'android.settings.SOUND_SETTINGS').launch();
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: _btnCard(
+                                icon: _nightMode ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                                title: _nightMode ? "حالت شب (تیره)" : "حالت روز (روشن)",
+                                subtitle: "کنترل نور چشم",
+                                onTap: () {
+                                  setState(() {
+                                    _nightMode = !_nightMode;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }
-            Widget _card(IconData icon, String title, VoidCallback onTap) => InkWell(onTap: onTap, child: Card(color: Colors.white10, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 40), Text(title)])));
+
+            Widget _btnCard({
+              required IconData icon,
+              required String title,
+              required String subtitle,
+              required VoidCallback onTap,
+            }) {
+              return InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(icon, size: 30, color: Colors.white70),
+                      const SizedBox(height: 6),
+                      Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.white38)),
+                    ],
+                  ),
+                ),
+              );
+            }
           }
 
-          class SpeedometerPainter extends CustomPainter {
+          class ModernSpeedometerPainter extends CustomPainter {
             final double speed;
-            SpeedometerPainter(this.speed);
+            final Color accentColor;
+            ModernSpeedometerPainter(this.speed, this.accentColor);
+
             @override
             void paint(Canvas canvas, Size size) {
-              Paint paint = Paint()..color = Colors.white24..strokeWidth = 10..style = PaintingStyle.stroke;
-              canvas.drawArc(Rect.fromLTWH(0, 0, size.width, size.height), 3.14, 3.14, false, paint);
-              Paint needle = Paint()..color = Colors.cyan..strokeWidth = 5;
-              double angle = (speed / 200) * 3.14;
-              canvas.drawLine(Offset(size.width/2, size.height/2), Offset(size.width/2 + 80*cos(angle + 3.14), size.height/2 + 80*sin(angle + 3.14)), needle);
+              final center = Offset(size.width / 2, size.height / 2);
+              final radius = size.width / 2;
+
+              // قوس پس‌زمینه
+              final bgPaint = Paint()
+                ..color = Colors.white10
+                ..style = PaintingStyle.stroke
+                ..strokeCap = StrokeCap.round
+                ..strokeWidth = 12;
+              canvas.drawArc(Rect.fromCircle(center: center, radius: radius), pi * 0.75, pi * 1.5, false, bgPaint);
+
+              // قوس پر شده بر اساس سرعت
+              final activePaint = Paint()
+                ..color = accentColor
+                ..style = PaintingStyle.stroke
+                ..strokeCap = StrokeCap.round
+                ..strokeWidth = 12;
+              double sweep = (speed / 200.0) * (pi * 1.5);
+              canvas.drawArc(Rect.fromCircle(center: center, radius: radius), pi * 0.75, sweep.clamp(0.0, pi * 1.5), false, activePaint);
+
+              // عقربه سوزنی
+              double needleAngle = (pi * 0.75) + sweep;
+              final needlePaint = Paint()
+                ..color = Colors.white
+                ..strokeWidth = 3
+                ..strokeCap = StrokeCap.round;
+              Offset needleEnd = Offset(center.dx + (radius - 18) * cos(needleAngle), center.dy + (radius - 18) * sin(needleAngle));
+              canvas.drawLine(center, needleEnd, needlePaint);
             }
-            @override bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+
+            @override
+            bool shouldRepaint(covariant ModernSpeedometerPainter oldDelegate) => true;
           }
           EOF
-          
-          # اضافه کردن مجوز GPS به فایل اندروید
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
-          
-          # بیلد نهایی
+
+          # بیلد فایل نصبی
           flutter build apk --release
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: Tiba2_Launcher_Final
+          name: Tiba2_Monitor_Launcher
           path: build/app/outputs/flutter-apk/app-release.apk
