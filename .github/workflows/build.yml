@@ -19,16 +19,37 @@ jobs:
 
       - name: Setup and Build
         run: |
-          # پاکسازی فایل‌های قدیمی
+          # پاکسازی کامل برای ساخت پروژه استاندارد
           find . -maxdepth 1 -not -name '.github' -not -name '.' -exec rm -rf {} +
 
           # ساخت پروژه پایه فلاتر
           flutter create . --project-name tiba2_launcher --platforms=android
 
-          # افزودن پکیج‌ها
-          flutter pub add geolocator:^10.1.0 permission_handler:^11.3.0 android_intent_plus:^4.0.3
+          # جایگزینی pubspec.yaml با پکیج‌های از پیش تعریف شده (بدون نیاز به پکیج‌اضافه کن خودکار)
+          cat << 'EOF' > pubspec.yaml
+          name: tiba2_launcher
+          description: Tiba 2 Car Launcher
+          publish_to: 'none'
+          version: 1.0.0+1
 
-          # حل قطعی ارور minSdk و compileSdk برای تمام پکیج‌ها
+          environment:
+            sdk: '>=3.0.0 <4.0.0'
+
+          dependencies:
+            flutter:
+              sdk: flutter
+            geolocator: ^10.1.0
+            permission_handler: ^11.3.0
+            android_intent_plus: ^4.0.3
+
+          flutter:
+            uses-material-design: true
+          EOF
+
+          # دریافت پکیج‌ها
+          flutter pub get
+
+          # تنظیم اجباری minSdkVersion 21 و compileSdkVersion 34 در فایل گریدل
           cat << 'GRADLE' >> android/app/build.gradle
 
           android {
@@ -40,13 +61,13 @@ jobs:
           }
           GRADLE
 
-          # تنظیم کاتلین
+          # هماهنگ‌سازی نسخه کاتلین
           find android -type f -name "build.gradle" -exec sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.22'/g" {} +
 
-          # مجوزهای GPS
+          # افزودن مجوزهای GPS به مانیفست اندروید
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
 
-          # ایجاد کد برنامه (سرعت‌سنج عقربه‌ای و دیجیتال + حالت شب و روز + کنترل صدا)
+          # ایجاد کد اصلی لانچر (سرعت‌سنج، حالت شب، صدا)
           cat << 'EOF' > lib/main.dart
           import 'dart:async';
           import 'dart:math';
@@ -261,7 +282,7 @@ jobs:
           }
           EOF
 
-          # ساخت APK نهایی
+          # ساخت نهایی APK
           flutter build apk --release
 
       - name: Upload Artifact
