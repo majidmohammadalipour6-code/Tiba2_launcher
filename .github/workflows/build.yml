@@ -19,31 +19,34 @@ jobs:
 
       - name: Setup and Build
         run: |
-          # پاکسازی محیط برای شروع تازه
+          # پاکسازی فایل‌های قدیمی
           find . -maxdepth 1 -not -name '.github' -not -name '.' -exec rm -rf {} +
 
-          # ساخت پروژه تمیز
+          # ساخت پروژه پایه فلاتر
           flutter create . --project-name tiba2_launcher --platforms=android
 
-          # افزودن پکیج‌ها با نسخه‌های تست‌شده و پایدار
+          # افزودن پکیج‌ها
           flutter pub add geolocator:^10.1.0 permission_handler:^11.3.0 android_intent_plus:^4.0.3
 
-          # تنظیم دقیق نسخه‌های اندروید و کاتلین
-          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 34/g' android/app/build.gradle || true
-          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle || true
-          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/g' android/app/build.gradle || true
-          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle || true
-          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 34/g' android/app/build.gradle || true
-          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle || true
+          # حل قطعی ارور minSdk و compileSdk برای تمام پکیج‌ها
+          cat << 'GRADLE' >> android/app/build.gradle
 
-          # هماهنگ‌سازی نسخه کاتلین
+          android {
+              compileSdkVersion 34
+              defaultConfig {
+                  minSdkVersion 21
+                  targetSdkVersion 34
+              }
+          }
+          GRADLE
+
+          # تنظیم کاتلین
           find android -type f -name "build.gradle" -exec sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '1.9.22'/g" {} +
-          find android -type f -name "settings.gradle" -exec sed -i "s/id \"org.jetbrains.kotlin.android\" version .*/id \"org.jetbrains.kotlin.android\" version \"1.9.22\" apply false/g" {} +
 
           # مجوزهای GPS
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
 
-          # ایجاد کد اصلی لانچر
+          # ایجاد کد برنامه (سرعت‌سنج عقربه‌ای و دیجیتال + حالت شب و روز + کنترل صدا)
           cat << 'EOF' > lib/main.dart
           import 'dart:async';
           import 'dart:math';
@@ -111,7 +114,7 @@ jobs:
 
             @override
             Widget build(BuildContext context) {
-              Color bgColor = _nightMode ? const Color(0xFF080C14) : const Color(0xFF1B2232);
+              Color bgColor = _nightMode ? const Color(0xFF090D16) : const Color(0xFF1E2638);
               Color accentColor = _nightMode ? Colors.cyanAccent : Colors.orangeAccent;
 
               return Scaffold(
