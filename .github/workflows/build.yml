@@ -21,22 +21,21 @@ jobs:
         run: |
           cd /tmp
           rm -rf tiba_launcher
-          # ایجاد پروژه تمیز با ساختار استاندارد اندروید
           flutter create --platforms=android --org com.tiba.launcher tiba_launcher
           cd tiba_launcher
 
-          # افزودن پکیج‌های مورد نیاز با ابزار رسمی فلاتر (بدون دستکاری فایل)
+          # افزودن پکیج‌ها
           flutter pub add geolocator permission_handler android_intent_plus
 
-          # اصلاح minSdkVersion در local.properties به روش استاندارد و بی خطر
+          # سازگاری SDK مانیتور تیبا
           echo "flutter.minSdkVersion=21" >> android/local.properties
           echo "flutter.targetSdkVersion=34" >> android/local.properties
           echo "flutter.compileSdkVersion=34" >> android/local.properties
 
-          # مجوزهای جی‌پی‌اس برای سرعت‌سنج در مانیتور
+          # دسترسی‌های جی‌پی‌اس
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
 
-          # کد اختصاصی رابط کاربری تیبا ۲
+          # کد دارت لانچر
           cat << 'EOF' > lib/main.dart
           import 'dart:async';
           import 'dart:math';
@@ -228,8 +227,18 @@ jobs:
           }
           EOF
 
-          # اجرای بیلد نهایی
-          flutter build apk --release
+          # اجرای بیلد و ذخیره لاگ
+          set +e
+          flutter build apk --release > /tmp/build_log.txt 2>&1
+          BUILD_STATUS=$?
+          set -e
+
+          if [ $BUILD_STATUS -ne 0 ]; then
+            echo "========== [علت دقیق شکست بیلد] =========="
+            grep -B 3 -A 10 "FAILURE:" /tmp/build_log.txt || tail -n 40 /tmp/build_log.txt
+            echo "=========================================="
+            exit 1
+          fi
 
           mkdir -p $GITHUB_WORKSPACE/output
           cp build/app/outputs/flutter-apk/app-release.apk $GITHUB_WORKSPACE/output/Tiba2_Launcher.apk
