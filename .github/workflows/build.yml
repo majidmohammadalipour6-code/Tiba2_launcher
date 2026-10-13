@@ -21,45 +21,22 @@ jobs:
         run: |
           cd /tmp
           rm -rf tiba_launcher
-          flutter create --org com.tiba --project-name tiba_launcher tiba_launcher
+          # ایجاد پروژه تمیز با ساختار استاندارد اندروید
+          flutter create --platforms=android --org com.tiba.launcher tiba_launcher
           cd tiba_launcher
 
-          # فایل پکیج‌ها
-          cat << 'EOF' > pubspec.yaml
-          name: tiba_launcher
-          description: Tiba 2 Car Launcher
-          publish_to: 'none'
-          version: 1.0.0+1
-          environment:
-            sdk: '>=3.0.0 <4.0.0'
-          dependencies:
-            flutter:
-              sdk: flutter
-            geolocator: ^10.1.0
-            permission_handler: ^11.3.0
-            android_intent_plus: ^4.0.3
-          flutter:
-            uses-material-design: true
-          EOF
+          # افزودن پکیج‌های مورد نیاز با ابزار رسمی فلاتر (بدون دستکاری فایل)
+          flutter pub add geolocator permission_handler android_intent_plus
 
-          flutter pub get
+          # اصلاح minSdkVersion در local.properties به روش استاندارد و بی خطر
+          echo "flutter.minSdkVersion=21" >> android/local.properties
+          echo "flutter.targetSdkVersion=34" >> android/local.properties
+          echo "flutter.compileSdkVersion=34" >> android/local.properties
 
-          # تنظیمات سازگاری نسخه اندروید
-          cat << 'GRADLE' >> android/app/build.gradle
-
-          android {
-              compileSdkVersion 34
-              defaultConfig {
-                  minSdkVersion 21
-                  targetSdkVersion 34
-              }
-          }
-          GRADLE
-
-          # دسترسی‌های مانیتور
+          # مجوزهای جی‌پی‌اس برای سرعت‌سنج در مانیتور
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
 
-          # کد لانچر
+          # کد اختصاصی رابط کاربری تیبا ۲
           cat << 'EOF' > lib/main.dart
           import 'dart:async';
           import 'dart:math';
@@ -251,8 +228,8 @@ jobs:
           }
           EOF
 
-          # بیلد با نمایش لاگ کامل
-          flutter build apk --release -v
+          # اجرای بیلد نهایی
+          flutter build apk --release
 
           mkdir -p $GITHUB_WORKSPACE/output
           cp build/app/outputs/flutter-apk/app-release.apk $GITHUB_WORKSPACE/output/Tiba2_Launcher.apk
