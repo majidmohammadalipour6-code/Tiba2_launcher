@@ -20,11 +20,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Create platforms
-        run: flutter create . --platforms=android
-
       - name: Build APK
-        run: flutter build apk --split-per-abi --debug
+        # دستور --verbose به ما جزئیات دقیقی می‌دهد که کجای کار می‌لنگد
+        run: flutter build apk --split-per-abi --debug --verbose
         
       - name: Upload APKs
         uses: actions/upload-artifact@v4
