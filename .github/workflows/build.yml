@@ -14,6 +14,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.22.2'
           channel: 'stable'
 
       - name: Build Launcher APK
@@ -23,7 +24,7 @@ jobs:
           flutter create --org com.tiba --project-name tiba_launcher tiba_launcher
           cd tiba_launcher
 
-          # تنظیم مشخصات پکیج‌ها
+          # فایل پکیج‌ها
           cat << 'EOF' > pubspec.yaml
           name: tiba_launcher
           description: Tiba 2 Car Launcher
@@ -55,10 +56,10 @@ jobs:
           }
           GRADLE
 
-          # دسترسی‌های لوکیشن در مانیتور خودرو
+          # دسترسی‌های مانیتور
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
 
-          # کد لانچر اختصاصی تیبا ۲
+          # کد لانچر
           cat << 'EOF' > lib/main.dart
           import 'dart:async';
           import 'dart:math';
@@ -250,10 +251,9 @@ jobs:
           }
           EOF
 
-          # بیلد استاندارد بدون فلگ‌های غیراستاندارد
-          flutter build apk --release
+          # بیلد با نمایش لاگ کامل
+          flutter build apk --release -v
 
-          # انتقال فایل خروجی برای آپلود
           mkdir -p $GITHUB_WORKSPACE/output
           cp build/app/outputs/flutter-apk/app-release.apk $GITHUB_WORKSPACE/output/Tiba2_Launcher.apk
 
