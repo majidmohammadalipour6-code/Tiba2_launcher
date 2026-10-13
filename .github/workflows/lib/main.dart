@@ -1,10 +1,18 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:flutter/services.dart';
+import 'dart:async';
 
 void main() {
-  runApp(const TibaLauncherApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  // قفل کردن کامل صفحه نمایش در حالت افقی (Landscape)
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]).then((_) {
+    // مخفی کردن نوارهای ناوبری برای حالت فول‌اسکرین مثل مانیتور ماشین
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    runApp(const TibaLauncherApp());
+  });
 }
 
 class TibaLauncherApp extends StatelessWidget {
@@ -13,10 +21,10 @@ class TibaLauncherApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Tiba 2 Launcher',
+      title: 'Tiba 2 Car Launcher',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0A0E17),
+        scaffoldBackgroundColor: const Color(0xFF0F111A),
       ),
       home: const DashboardScreen(),
     );
@@ -31,155 +39,188 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  late Timer _timer;
   String _timeString = '';
-  double _currentSpeed = 0.0;
-  StreamSubscription<Position>? _positionStream;
+  String _dateString = '';
 
   @override
   void initState() {
     super.initState();
     _updateTime();
-    Timer.periodic(const Duration(seconds: 1), (Timer t) => _updateTime());
-    _initLocation();
+    _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => _updateTime());
   }
 
   void _updateTime() {
     final DateTime now = DateTime.now();
     setState(() {
-      _timeString = DateFormat('HH:mm').format(now);
-    });
-  }
-
-  Future<void> _initLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
-    }
-
-    _positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    ).listen((Position position) {
-      setState(() {
-        _currentSpeed = position.speed >= 0 ? (position.speed * 3.6) : 0.0;
-      });
+      _timeString = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+      _dateString = "${now.year}/${now.month.toString().padLeft(2, '0')}/${now.day.toString().padLeft(2, '0')}";
     });
   }
 
   @override
   void dispose() {
-    _positionStream?.cancel();
+    _timer.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
-        children: [
-          // نوار دسترسی کناری
-          Container(
-            width: 75,
-            color: const Color(0xFF111726),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                const Icon(Icons.directions_car, color: Colors.cyanAccent, size: 34),
-                IconButton(icon: const Icon(Icons.navigation, color: Colors.white70), onPressed: () {}),
-                IconButton(icon: const Icon(Icons.music_note, color: Colors.white70), onPressed: () {}),
-                IconButton(icon: const Icon(Icons.apps, color: Colors.white70), onPressed: () {}),
-                IconButton(icon: const Icon(Icons.settings, color: Colors.white70), onPressed: () {}),
-              ],
-            ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [
+              Color(0xFF1E2640),
+              Color(0xFF0A0C14),
+            ],
           ),
-          // بدنه داشبورد
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Row(
+          children: [
+            // بخش سمت چپ: پنل اطلاعات ساعت، وضعیت خودرو و آرم تیبا
+            Expanded(
+              flex: 4,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.2)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.cyanAccent.withOpacity(0.05),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.directions_car, color: Colors.cyanAccent, size: 28),
+                        SizedBox(width: 8),
+                        Text(
+                          'TIBA 2',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 3,
+                            color: Colors.cyanAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Text(
+                      _timeString,
+                      style: const TextStyle(
+                        fontSize: 54,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    Text(
+                      _dateString,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white.withOpacity(0.6),
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    // ویجت کمکی شبیه سرعت‌سنج یا وضعیت
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: const [
+                          Icon(Icons.speed, color: Colors.orangeAccent, size: 22),
+                          Text('0 km/h', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          SizedBox(width: 10),
+                          Icon(Icons.battery_charging_full, color: Colors.greenAccent, size: 22),
+                          Text('100%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 20),
+
+            // بخش سمت راست: دکمه‌های اصلی و برنامه‌ها
+            Expanded(
+              flex: 7,
               child: Column(
                 children: [
-                  // نوار بالایی ساعت و برند
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "TIBA 2 SPORT",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.cyanAccent, letterSpacing: 2),
-                      ),
-                      Text(
-                        _timeString,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  // ویجت‌های اصلی
                   Expanded(
                     child: Row(
                       children: [
-                        // سرعت‌سنج جی‌پی‌اس
-                        Expanded(
-                          flex: 3,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF161F30),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  _currentSpeed.toStringAsFixed(0),
-                                  style: const TextStyle(fontSize: 64, fontWeight: FontWeight.bold, color: Colors.cyanAccent),
-                                ),
-                                const Text("km/h", style: TextStyle(color: Colors.white54, fontSize: 16)),
-                              ],
-                            ),
-                          ),
+                        _buildLauncherCard(
+                          title: 'مسیریاب',
+                          subtitle: 'Navigation',
+                          icon: Icons.navigation_rounded,
+                          color: Colors.blueAccent,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('در حال باز کردن نقشه...')),
+                            );
+                          },
                         ),
-                        const SizedBox(width: 14),
-                        // موزیک و وضعیت
-                        Expanded(
-                          flex: 4,
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF161F30),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: Colors.amber.withOpacity(0.3)),
-                                  ),
-                                  child: const Center(
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.play_circle_fill, size: 48, color: Colors.amber),
-                                        SizedBox(width: 12),
-                                        Text("پخش موزیک", style: TextStyle(fontSize: 18, color: Colors.white)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF161F30),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: const Center(
-                                    child: Text("ناوبری و مسیریاب آنلاین", style: TextStyle(color: Colors.white70)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        const SizedBox(width: 16),
+                        _buildLauncherCard(
+                          title: 'موزیک و رادیو',
+                          subtitle: 'Media Player',
+                          icon: Icons.music_note_rounded,
+                          color: Colors.purpleAccent,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('در حال باز کردن پلیر...')),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        _buildLauncherCard(
+                          title: 'تلفن و مخاطبین',
+                          subtitle: 'Contacts',
+                          icon: Icons.phone_in_talk_rounded,
+                          color: Colors.tealAccent,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('در حال باز کردن تماس...')),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 16),
+                        _buildLauncherCard(
+                          title: 'برنامه‌ها و تنظیمات',
+                          subtitle: 'Apps & Settings',
+                          icon: Icons.apps_rounded,
+                          color: Colors.amberAccent,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('لیست همه برنامه‌ها')),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -187,8 +228,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLauncherCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          splashColor: color.withOpacity(0.3),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CircleAvatar(
+                  backgroundColor: color.withOpacity(0.2),
+                  radius: 26,
+                  child: Icon(icon, color: color, size: 30),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
