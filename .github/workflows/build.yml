@@ -11,6 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Move lib folder to root
+        run: |
+          if [ -d ".github/workflows/lib" ]; then
+            cp -r .github/workflows/lib ./lib
+          fi
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
