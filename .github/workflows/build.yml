@@ -30,6 +30,9 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Regenerate Android platform files
+        run: flutter create . --platforms=android --org com.example.tiba2launcher
+
       - name: Install dependencies
         run: flutter pub get
 
